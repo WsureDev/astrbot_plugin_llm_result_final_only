@@ -9,6 +9,7 @@ from typing import TypeAlias
 from weakref import WeakKeyDictionary
 
 from astrbot.core.agent.response import AgentResponse, AgentResponseData
+from astrbot.core.agent.runners.base import AgentState
 from astrbot.core.agent.runners.tool_loop_agent_runner import ToolLoopAgentRunner
 from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.message.message_event_result import MessageChain
@@ -55,8 +56,22 @@ class OutputGate:
             if enabled:
                 self.requests[runner] = runner.req
 
+            terminal_chain = None
             async with aclosing(original_step(runner)) as responses:
                 async for response in responses:
+                    if (
+                        response.type == "tool_call_result"
+                        and response.data["chain"].type == "tool_direct_result"
+                    ):
+                        # Preserve files, images and intentional direct replies.
+                        yield response
+                        continue
+                    if enabled and response.type == "llm_result":
+                        candidate = response.data["chain"]
+                        if candidate.type is None and candidate.chain:
+                            # Only this step can become the terminal step when
+                            # a tool ends the run without a final LLMResponse.
+                            terminal_chain = candidate
                     if enabled and response.type in SUPPRESSED_RESPONSES:
                         continue
                     yield response
@@ -65,17 +80,20 @@ class OutputGate:
                 return
 
             final_response = runner.get_final_llm_resp()
-            if final_response is None or final_response.role != "assistant":
-                return
-
-            chain = final_response.result_chain
-            if chain is not None:
-                chain = chain.derive(chain=list(chain.chain))
-            elif final_response.completion_text:
-                chain = MessageChain().message(final_response.completion_text)
+            if final_response is None:
+                if runner._state != AgentState.DONE:
+                    return
+                chain = terminal_chain
+            else:
+                if final_response.role != "assistant":
+                    return
+                chain = final_response.result_chain
+                if chain is None and final_response.completion_text:
+                    chain = MessageChain().message(final_response.completion_text)
 
             if chain is None or not chain.chain:
                 return
+            chain = chain.derive(chain=list(chain.chain))
 
             # Do not let result_decorate reinsert reasoning from the final hook.
             # The provider response and model history remain intact.
