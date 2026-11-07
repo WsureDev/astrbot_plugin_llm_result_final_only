@@ -1,0 +1,11 @@
+name: astrbot_plugin_llm_result_final_only
+display_name: 只发最终回复
+desc: 阻断内置 Agent 中间输出，不合并过程消息，只发送最终响应。提供原生配置开关，支持流式模式。
+version: 1.0.0
+author: wsure
+repo: https://github.com/WsureDev/astrbot_plugin_llm_result_final_only
+astrbot_version: ">=4.28,<4.30"
+tags:
+  - Agent
+  - 输出控制
+  - 最终回复

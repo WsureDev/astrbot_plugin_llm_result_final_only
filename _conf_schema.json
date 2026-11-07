@@ -1,0 +1,9 @@
+{
+  "enabled": {
+    "description": "只发送最终回复",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，内置 Agent 的中间文本、思考片段和工具状态不发送、不合并，完成后只发送最终响应。支持流式模式；新请求生效。工具或其他插件自行主动发送的消息不在此开关范围内。",
+    "obvious_hint": true
+  }
+}
